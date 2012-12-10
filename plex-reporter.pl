@@ -41,7 +41,7 @@ my $CURTIME = sprintf(
     (strftime "%S", localtime));
 my $CURUSER = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
 my @PLEX_LOGFILES = (
-    '/var/lib/plexmediaserver/Library/Application Support' .
+   '/var/lib/plexmediaserver/Library/Application Support' .
     '/Plex Media Server/Logs/Plex Media Server.old.log',
     '/var/lib/plexmediaserver/Library/Application Support' .
     '/Plex Media Server/Logs/Plex Media Server.log',
@@ -1416,12 +1416,14 @@ sub plex_parseLog() {
              $log_line !~ /.+GET\ \/video\/:\/transcode.+ratingKey=[0-9]+/ &&
              $log_line !~ /.+GET\ \/library\/metadata\/[0-9]+\?X-Plex-Token/ &&
              $log_line !~ /.+GET\ \/video\/:\/transcode\/segmented\/start.m3u8.+library\%2fparts\%2f[0-9]+/ &&
-             $log_line !~ /.+HTTP\ requesting\ to:.+&ratingKey=.+state=playing/
+             $log_line !~ /.+HTTP\ requesting\ to:.+&ratingKey=.+state=playing/ &&
+			$log_line !~ /.*progress.*key=[0-9]+.*\[[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:.*\].*/
         ) {
             # Not interested, wrong type of log line
             undef($log_line);
             next;
-        }
+        } 
+	#	print "Checking: $log_line\n";
 
         # Regex matched, so now check the date is within range
         # Note: We do this after the regex as it can be CPU intensive
@@ -1452,6 +1454,7 @@ sub plex_parseLog() {
                     next;
                 }
             } else {
+		
                 # This is a different date entry, check it
                 $tmp_lastdate = $tmp_ldate;
                 undef($tmp_ldate);
@@ -1564,7 +1567,7 @@ sub plex_parseLog() {
         } elsif ( $tmp_line =~ /.+HTTP\ requesting\ to:.+ratingKey=.+state=playing/ ) {
             # Plex DLNA Match
             $tmp_line =~ s/^.+&ratingKey=([0-9]+).+$/$1|DLNA/;
-        } else {
+        } elsif ($tmp_line =~ /^[a-zA-Z]+\ [0-9]+,\ [0-9]+.+[\?\&]key=([0-9]+).+\[([0-9\.]+)\].+$/) {
             $tmp_line =~ s/^[a-zA-Z]+\ [0-9]+,\ [0-9]+.+[\?\&]key=([0-9]+).+\[([0-9\.]+)\].+$/$1|$2/;
             # Plex 0.9.6 - new URL format
             &plex_debug(2,"Type 4 Line Match: $tmp_line");
@@ -1573,7 +1576,12 @@ sub plex_parseLog() {
             } else {
                 $tmp_line =~ s/^[a-zA-Z]+\ [0-9]+,\ [0-9]+.+GET\ \/:\/progress\?key=([0-9]+).*\[([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)\].*$/$1|$2/;
             }
-        }
+			
+        } else {
+		 &plex_debug(2,"Type 0977 Line Match: $tmp_line");
+		 $tmp_line =~ s/.*key=([0-9]+).*\[([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):[0-9]+\].*/$1|$2/;
+		}
+	#	print "$tmp_line\n";
         # Split the new line to pull out the date/video id/ip
         my ($tmp_key, $tmp_ip) = split(/\|/, $tmp_line);
         if ( ! defined($tmp_key) || ! defined($tmp_ip) ) {
